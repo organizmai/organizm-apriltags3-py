@@ -48,6 +48,15 @@ class _ZArray(ctypes.Structure):
         ('data', ctypes.c_void_p)
     ]
 
+class _Quad(ctypes.Structure):
+    '''Wraps quad C struct.'''
+    _fields_ = [
+        ('p', (ctypes.c_float*2)*4),
+        ('reversed_border', ctypes.c_bool),
+        ('H', ctypes.POINTER(_Matd)),
+        ('Hinv', ctypes.POINTER(_Matd))
+    ]
+
 class _ApriltagFamily(ctypes.Structure):
     '''Wraps apriltag_family C struct.'''
     _fields_ = [
@@ -401,6 +410,29 @@ image of type numpy.uint8.'''
 
         return return_info
 
+    def detect_quads(self, img, estimate_tag_pose=False, camera_params=None, tag_size=None):
+        '''Run detectons on the provided image. The image must be a grayscale
+image of type numpy.uint8.'''
+
+        assert len(img.shape) == 2
+        assert img.dtype == numpy.uint8
+
+        c_img = self._convert_image(img)
+
+        return_info = []
+
+        #detect apriltags in the image
+        self.libc.apriltag_quad_detector_detect.restype = ctypes.POINTER(_ZArray)
+        quads = self.libc.apriltag_quad_detector_detect(self.tag_detector_ptr, c_img)
+        quad = _Quad()
+
+        py_quads = []
+        for i in range(0, quads.contents.size):
+            zarray_get(quads, i, ctypes.byref(quad))
+            new_quad = numpy.ctypeslib.as_array(quad.p, shape=(4, 2)).copy()
+            py_quads.append(new_quad)
+
+        return py_quads
 
     def _convert_image(self, img):
 
@@ -465,6 +497,16 @@ if __name__ == '__main__':
 
     if visualization:
         cv2.imshow('Original image',img)
+
+
+    quads = at_detector.detect_quads(img, True, camera_params, parameters['sample_test']['tag_size'])
+    for quad in quads:
+        print(quad)
+        cv2.polylines(img,[quad.astype(int)],True,(255,255,255))
+
+    cv2.imshow("img", img)
+    cv2.waitKey(0)
+    quit()
 
     tags = at_detector.detect(img, True, camera_params, parameters['sample_test']['tag_size'])
     print(tags)
