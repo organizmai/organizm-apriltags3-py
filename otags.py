@@ -179,37 +179,27 @@ class CodeFamily(object):
 		self.min_hamming = min_hamming
 		self.complexity = complexity
 
-		self.result_list = np.array([], dtype=int)
+		self.result_list = []
 
 		self.start = random.randint(0, 2**32)
 		self.large_prime = 982451653 # This is a large prime
+
+		
+	def get_mirror(self, val):
+		return val[::-1]
 
 
 	# Checks if the hamming distance of the given value and it's mirror
 	# are less than the minmum hamming threshold.
 	def is_hamming_from_existing(self, val):
-		if self.result_list.shape[0] == 0:
-			return True
+		val_mirror = self.get_mirror(val)
+		for code in self.result_list:
+			h_dist_orig = bin(int(val,2) ^ int(code,2)).count("1")
+			h_dist_mirror = bin(int(val_mirror,2) ^ int(code,2)).count("1")
+			if (h_dist_orig < self.min_hamming) or (h_dist_mirror < self.min_hamming):
+				return False
 
-		# Tiled to make unambiguous for square matrix broadcasting.
-		val_tile = np.tile(val,(self.result_list.shape[0],1)) 
-		val_mirror_tile = np.flip(val_tile, axis=1)
-
-		min1 = np.amin(np.sum(np.logical_xor(self.result_list, val_tile), axis=1))
-		if min1 > self.min_hamming:
-			return False
-		min2 = np.amin(np.sum(np.logical_xor(self.result_list, val_mirror_tile), axis=1))
-		if min2 > self.min_hamming:
-			return False
 		return True
-
-		# for code in self.result_list:
-		# 	h_dist_orig = bin(int(val,2) ^ int(code,2)).count("1")
-		# 	h_dist_mirror = bin(int(val_mirror,2) ^ int(code,2)).count("1")
-		# 	if (h_dist_orig < self.min_hamming) or (h_dist_mirror < self.min_hamming):
-		# 		return False
-
-		# return True
 
 
 
@@ -217,31 +207,29 @@ class CodeFamily(object):
 
 	# Complexity is the number of groups of bits. 
 	def check_complexity(self, val):
-		res = np.sum(np.absolute(np.diff(val)))
+		res = 1
+		for i in range(len(val) - 1):
+			if val[i+1] != val[i]:
+				res += 1
 		return res > self.complexity
 
 	def run(self):
 		for i in range(2**(self.bits)):
 			val = self.start + self.large_prime * i
 			
-			# Convert to a numpy array with binary values
-			bin_val = np.array(list(bin(val)[-self.bits-2:-1]), dtype=int)
-
+			bin_val = bin(val)[-self.bits-2:-1]
 			# print(bin_val, bin(val), bin_val) 
 			if self.check_complexity(bin_val):
-				mirror = np.flip(bin_val)
-				h_dist_self = np.sum(np.logical_xor(bin_val, mirror))
+				mirror = self.get_mirror(bin_val)
+				h_dist_self = bin(int(bin_val,2) ^ int(mirror,2)).count("1")
 				if h_dist_self > self.min_hamming:
 					if self.is_hamming_from_existing(bin_val):
-						if self.result_list.shape[0] == 0:
-							self.result_list = np.array([bin_val])
-						else:
-							np.append(self.result_list, np.array([bin_val]), axis=0)
+						self.result_list.append(bin_val)
 						print(bin_val, flush=True)
 
 
 
-cf = CodeFamily(22, 6, 3)
+cf = CodeFamily(19, 6, 3)
 
 cProfile.run("cf.run()")
 
